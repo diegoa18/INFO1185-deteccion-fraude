@@ -1,0 +1,22 @@
+# Datos locales descargados desde Kaggle (no versionar)
+/data/raw/*.csv
+
+# Entornos y artefactos de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Entornos de Jupyter
+.ipynb_checkpoints/
+
+# Salidas generadas por experimentos
+/data/processed/*
+!/data/processed/.gitkeep
+/results/tables/*
+!/results/tables/.gitkeep
+/results/figures/*
+!/results/figures/.gitkeep
