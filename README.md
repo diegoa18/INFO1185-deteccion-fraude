@@ -2,7 +2,7 @@
 
 Proyecto de INFO1185 para explorar el conjunto **Credit Card Fraud Detection** y comparar, en etapas posteriores, clasificadores supervisados con prioridad en reducir falsos negativos de fraude.
 
-El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento y selección de características. Los clasificadores, estrategias de balanceo, validación cruzada ejecutable, ajuste de hiperparámetros y evaluación comparativa todavía no están implementados.
+El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento, selección de características y la configuración reutilizable de validación cruzada. Los clasificadores, estrategias de balanceo, búsqueda de hiperparámetros y evaluación comparativa todavía no están implementados.
 
 ## Estructura
 
@@ -17,6 +17,7 @@ src/
   config.py            # semillas, partición y rutas
   data/                # carga, diagnóstico y preparación
   features/            # selector de variables
+  validation/          # particiones estratificadas de validación cruzada
 tests/
   test_preprocessing.py
 results/               # tablas y figuras futuras
@@ -62,7 +63,7 @@ La configuración central está en `src/config.py`:
 - `TEST_SIZE = 0.30`
 - `N_SPLITS = 5` (reservado para la validación cruzada de una issue posterior)
 
-La división oficial es 70 % entrenamiento y 30 % prueba, con `stratify=y`. Aunque una descripción anterior de la issue mencionaba 70/15/15, se aplica el enunciado oficial: no se crea un conjunto de validación fijo. El conjunto de prueba se reserva intacto para la evaluación final.
+La división oficial es 70 % entrenamiento y 30 % prueba, estratificada por `Class`. Aunque una descripción anterior de la issue mencionaba 70/15/15, se aplica el enunciado oficial: no se crea un conjunto de validación fijo. El conjunto de prueba se reserva intacto para la evaluación final. Además, la división mantiene los registros con predictores idénticos juntos para que una copia exacta no aparezca en entrenamiento y prueba a la vez.
 
 ```python
 from src.data.load_data import load_dataset, separate_features_target
@@ -74,6 +75,25 @@ X_train, X_test, y_train, y_test = stratified_train_test_split(X, y)
 ```
 
 Use `create_scaler("standard")`, `create_scaler("minmax")` o `create_scaler("none")` según el clasificador. Las dos primeras opciones devuelven transformadores nuevos de scikit-learn; deben estar dentro de un pipeline para ajustarse solo con entrenamiento. `"none"` devuelve `"passthrough"`, apropiado para modelos basados en árboles.
+
+El dataset oficial no presenta faltantes según la exploración. Si se trabajara con una variante que sí los tuviera, la imputación debe ser otro transformador del pipeline, ajustado dentro de cada fold, nunca una modificación global antes de la división. Los tipos inesperados y valores inconsistentes se informan en el diagnóstico para decidir una regla de dominio explícita; no se coercionan silenciosamente. Los duplicados exactos se conservan por defecto y se diagnostican por separado: eliminarlos puede alterar la clase minoritaria. Si se decide eliminarlos, esa decisión debe tomarse antes de la partición y justificarse con el impacto por clase.
+
+## Validación cruzada
+
+La validación cruzada se configura únicamente sobre `X_train` e `y_train`; no crea un tercer conjunto fijo ni toca `X_test`/`y_test`. Para que modelos y condiciones se comparen con exactamente los mismos folds, materialice los índices una sola vez y reutilícelos:
+
+```python
+from src.validation import materialize_stratified_folds
+
+folds = materialize_stratified_folds(X_train, y_train)
+for train_index, validation_index in folds:
+    X_fold_train = X_train.iloc[train_index]
+    y_fold_train = y_train.iloc[train_index]
+    X_fold_validation = X_train.iloc[validation_index]
+    y_fold_validation = y_train.iloc[validation_index]
+```
+
+Cada pipeline debe ajustarse dentro de ese ciclo sobre `X_fold_train`/`y_fold_train`; así, escalado y selección quedan aislados de los conjuntos de validación y prueba.
 
 ## Selección de características
 
@@ -102,4 +122,4 @@ Ejecute las pruebas unitarias sin requerir el CSV de Kaggle:
 pytest
 ```
 
-Cubren carga y validación del CSV, separación de `X` e `y`, división estratificada reproducible, prevención de `Class` como predictor, ajuste del escalador solo con entrenamiento e integración de escalado y selección en un pipeline.
+Cubren carga y validación del CSV, separación de `X` e `y`, división estratificada reproducible 70/30, ausencia de solapamiento por índice, prevención de `Class` como predictor, ajuste de transformadores solo con entrenamiento e integración de escalado y selección dentro de pipelines y cinco folds estratificados.

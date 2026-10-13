@@ -81,11 +81,15 @@ def diagnose_dataset(dataframe: pd.DataFrame) -> dict[str, Any]:
     validate_dataset_columns(dataframe)
     class_counts = dataframe[TARGET_COLUMN].value_counts().sort_index()
     class_percentages = (class_counts / len(dataframe) * 100).round(6) if len(dataframe) else class_counts
+    duplicate_rows_by_class = (
+        dataframe.loc[dataframe.duplicated(), TARGET_COLUMN].value_counts().sort_index()
+    )
     return {
         "shape": dataframe.shape,
         "dtypes": dataframe.dtypes.copy(),
         "missing_values": dataframe.isna().sum(),
         "duplicate_rows": int(dataframe.duplicated().sum()),
+        "duplicate_rows_by_class": duplicate_rows_by_class,
         "class_counts": class_counts,
         "class_percentages": class_percentages,
         "descriptive_statistics": dataframe.describe().transpose(),
