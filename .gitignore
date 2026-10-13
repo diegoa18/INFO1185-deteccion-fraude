@@ -20,3 +20,4 @@ htmlcov/
 !/results/tables/.gitkeep
 /results/figures/*
 !/results/figures/.gitkeep
+/creditcard.csv
