@@ -126,10 +126,14 @@ por defecto porque k-NN calcula distancias.
 ```python
 from src.models.knn import create_knn_pipeline
 
-pipeline = create_knn_pipeline(k_features=10, n_neighbors=5, metric="minkowski")
+pipeline = create_knn_pipeline(n_neighbors=5, metric="minkowski")
 pipeline.fit(X_train, y_train)
 predictions = pipeline.predict(X_test)
 ```
+
+Por defecto, ``k_features="all"`` conserva todas las características. Para
+seleccionar una cantidad específica mediante información mutua, entregue un
+entero positivo, por ejemplo ``k_features=10``.
 
 Los hiperparámetros del clasificador quedan accesibles como
 `classifier__n_neighbors`, `classifier__metric`, `classifier__weights` y

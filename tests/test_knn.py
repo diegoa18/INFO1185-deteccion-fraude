@@ -65,6 +65,17 @@ def test_knn_pipeline_creation_and_structure():
     assert isinstance(pipeline.named_steps["classifier"], KNeighborsClassifier)
 
 
+def test_knn_pipeline_uses_all_features_by_default(synthetic_features_target):
+    features, target = synthetic_features_target
+    pipeline = create_knn_pipeline(n_neighbors=3)
+
+    pipeline.fit(features, target)
+
+    selector = pipeline.named_steps["select"]
+    assert selector.k == "all"
+    assert selector.get_support().sum() == features.shape[1]
+
+
 def test_knn_pipeline_fits_predicts_and_excludes_target_from_predictors(synthetic_features_target):
     features, target = synthetic_features_target
     pipeline = create_knn_pipeline(k_features=5, n_neighbors=3)

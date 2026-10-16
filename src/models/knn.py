@@ -41,7 +41,7 @@ def create_knn_classifier(
 def create_knn_pipeline(
     *,
     scaler_kind: ScalerName = "standard",
-    k_features: int | Literal["all"] = 10,
+    k_features: int | Literal["all"] = "all",
     random_state: int = RANDOM_STATE,
     n_neighbors: int = 5,
     metric: str | Callable[..., float] = "minkowski",
@@ -51,10 +51,12 @@ def create_knn_pipeline(
 ) -> Pipeline:
     """Crea el pipeline de escalado, selección y clasificación k-NN.
 
-    Los transformadores se devuelven sin ajustar. Al invocar ``fit`` sobre el
-    pipeline, el escalado y la selección se ajustan únicamente con los datos
-    de entrenamiento recibidos, evitando fuga de información durante la
-    validación cruzada.
+    Por defecto, ``k_features="all"`` conserva todas las características;
+    entregue un entero positivo para seleccionar esa cantidad mediante
+    información mutua. Los transformadores se devuelven sin ajustar. Al
+    invocar ``fit`` sobre el pipeline, el escalado y la selección se ajustan
+    únicamente con los datos de entrenamiento recibidos, evitando fuga de
+    información durante la validación cruzada.
     """
     pipeline_steps = [
         ("scale", create_scaler(scaler_kind)),
