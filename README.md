@@ -2,7 +2,7 @@
 
 Proyecto de INFO1185 para explorar el conjunto **Credit Card Fraud Detection** y comparar, en etapas posteriores, clasificadores supervisados con prioridad en reducir falsos negativos de fraude.
 
-El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento, selección de características y la configuración reutilizable de validación cruzada. Los clasificadores, estrategias de balanceo, búsqueda de hiperparámetros y evaluación comparativa todavía no están implementados.
+El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento, selección de características, configuración reutilizable de validación cruzada y un pipeline k-NN. Las estrategias de balanceo, búsqueda de hiperparámetros y evaluación comparativa todavía no están implementadas.
 
 ## Estructura
 
@@ -17,9 +17,11 @@ src/
   config.py            # semillas, partición y rutas
   data/                # carga, diagnóstico y preparación
   features/            # selector de variables
+  models/              # pipelines de clasificadores
   validation/          # particiones estratificadas de validación cruzada
 tests/
   test_preprocessing.py
+  test_knn.py
 results/               # tablas y figuras futuras
 ```
 
@@ -113,6 +115,29 @@ X_train_selected = pipeline.fit_transform(X_train, y_train)
 X_test_selected = pipeline.transform(X_test)
 names = selected_feature_names(pipeline.named_steps["select"], X_train.columns)
 ```
+
+## k-Nearest Neighbors
+
+`create_knn_pipeline` mantiene el escalado y la selección dentro del pipeline,
+por lo que sus parámetros se ajustan únicamente al invocar `fit` sobre los datos
+de entrenamiento o sobre cada fold de entrenamiento. El escalado estándar se usa
+por defecto porque k-NN calcula distancias.
+
+```python
+from src.models.knn import create_knn_pipeline
+
+pipeline = create_knn_pipeline(n_neighbors=5, metric="minkowski")
+pipeline.fit(X_train, y_train)
+predictions = pipeline.predict(X_test)
+```
+
+Por defecto, ``k_features="all"`` conserva todas las características. Para
+seleccionar una cantidad específica mediante información mutua, entregue un
+entero positivo, por ejemplo ``k_features=10``.
+
+Los hiperparámetros del clasificador quedan accesibles como
+`classifier__n_neighbors`, `classifier__metric`, `classifier__weights` y
+`classifier__p` mediante `get_params` y `set_params`.
 
 ## Pruebas
 
