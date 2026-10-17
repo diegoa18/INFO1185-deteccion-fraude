@@ -2,7 +2,7 @@
 
 Proyecto de INFO1185 para explorar el conjunto **Credit Card Fraud Detection** y comparar, en etapas posteriores, clasificadores supervisados con prioridad en reducir falsos negativos de fraude.
 
-El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento, selección de características, configuración reutilizable de validación cruzada y un pipeline k-NN. Las estrategias de balanceo, búsqueda de hiperparámetros y evaluación comparativa todavía no están implementadas.
+El alcance actual incluye carga, exploración, diagnóstico, división reproducible, transformadores de preprocesamiento, selección de características, validación cruzada común, compensación del desbalance y búsqueda de hiperparámetros para k-NN, SVM, Árbol de Decisión y Random Forest propio. La evaluación final sobre test se mantiene como una etapa separada.
 
 ## Estructura
 
@@ -17,15 +17,17 @@ src/
   config.py            # semillas, partición y rutas
   data/                # carga, diagnóstico y preparación
   features/            # selector de variables
+  imbalance/           # análisis y sobremuestreo sin fuga de información
   models/              # pipelines de clasificadores
-  validation/          # particiones estratificadas de validación cruzada
+  validation/          # folds y optimización comparativa
 tests/
   test_preprocessing.py
   test_knn.py
+  test_issue_7.py
 results/               # tablas y figuras futuras
 ```
 
-Las carpetas restantes reservan espacio para las próximas issues y no contienen implementaciones anticipadas.
+Las carpetas restantes reservan espacio para resultados generados localmente.
 
 ## Instalación
 
@@ -139,6 +141,91 @@ Los hiperparámetros del clasificador quedan accesibles como
 `classifier__n_neighbors`, `classifier__metric`, `classifier__weights` y
 `classifier__p` mediante `get_params` y `set_params`.
 
+## Issue #7: desbalance, validación y optimización
+
+En el CSV oficial local, la distribución es la siguiente (la clase positiva es
+siempre `Class == 1`, fraude):
+
+| Clase | Significado | Cantidad | Porcentaje |
+|---:|---|---:|---:|
+| 0 | legítima | 284 315 | 99.827251 % |
+| 1 | fraude | 492 | 0.172749 % |
+
+La razón aproximada es **577.88 transacciones legítimas por cada fraude**. Por
+ello accuracy no sirve como métrica de selección: un clasificador que respondiera
+siempre clase 0 alcanzaría cerca de 99.83 % de accuracy y, aun así, tendría recall
+0 para fraude. La optimización prioriza el recall/sensibilidad de `Class == 1`;
+si dos configuraciones empatan dentro de `1e-9`, se escoge la de mayor precision
+de fraude.
+
+La ejecución reproducible completa es:
+
+```bash
+.venv/bin/python scripts/run_issue_7.py
+```
+
+El script realiza únicamente la selección usando el 70 % de entrenamiento y deja
+el 30 % de prueba aislado. Genera localmente, sin versionarlos, estos artefactos:
+
+- `results/tables/issue_7_class_imbalance.csv`
+- `results/figures/issue_7_class_distribution.png`
+- `results/tables/issue_7_cv_results.csv` (las ocho configuraciones finales)
+- `results/tables/issue_7_cv_candidates.csv` (todos los candidatos evaluados)
+- `results/tables/issue_7_fold_balance.csv` (conteos de entrenamiento antes y después en cada fold)
+
+### Validación y prevención de fuga
+
+Se crea una sola vez y se reutiliza para los cuatro modelos, con y solo con el
+conjunto de entrenamiento:
+
+```python
+StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+```
+
+`materialize_stratified_folds` congela los mismos índices antes de iniciar las
+ocho búsquedas. Cada llamada a `fit` sigue este orden dentro del training fold:
+
+```text
+escalado (cuando corresponde) → selección por información mutua
+→ RandomOverSampler opcional → clasificador
+```
+
+La selección fija las 10 variables con mayor información mutua para esta ronda
+de experimentos, pero aprende esas variables nuevamente dentro de cada training
+fold; no se ajusta una vez sobre el dataset completo.
+
+El `RandomOverSampler` propio se utiliza porque `imbalanced-learn` no es una
+dependencia del proyecto. Conserva todas las muestras de entrenamiento y duplica
+aleatoriamente las minoritarias hasta igualar la clase mayoritaria, usando
+`random_state=42`. Nunca se ajusta sobre validación o test. El mismo pipeline
+también garantiza que el scaler y el selector se ajusten solamente con los datos
+del training fold. Para árboles y el Random Forest propio el escalado es
+`passthrough`; k-NN y SVM usan escalado estándar.
+
+El resultado principal incluye explícitamente `class_0_before`, `class_1_before`,
+`class_0_after` y `class_1_after`; corresponden al ajuste final sobre el 70 % de
+entrenamiento. La tabla por fold permite verificar los mismos conteos dentro de
+la validación cruzada y que los validation folds nunca fueron balanceados.
+
+### Espacios de búsqueda acotados
+
+Las configuraciones viven en `DEFAULT_SEARCH_SPACES` de
+`src/validation/experiments.py`. Son candidatas deliberadamente acotadas para
+evitar una explosión de costo con 284 807 filas, y cada una se evalúa con los
+mismos cinco folds.
+
+| Modelo | Hiperparámetros explorados |
+|---|---|
+| k-NN | `n_neighbors` = 3, 5, 7, 11; `weights` = uniform/distance; `metric` = euclidean/manhattan en cuatro combinaciones representativas |
+| SVM | `kernel` = linear/rbf; `C` = 0.5/2.0; `gamma` = scale/0.1 solo para RBF (sin combinaciones inválidas) |
+| Árbol | `max_depth` = None/12; `min_samples_split` = 2/20; `min_samples_leaf` = 1/5; `criterion` = gini/entropy en cuatro combinaciones representativas |
+| Random Forest propio | `n_estimators` = 5/10; `max_depth` = None/12; `max_features` = sqrt/log2 en cuatro combinaciones representativas |
+
+El Random Forest se mantiene como `CustomRandomForest`; no se sustituye por la
+implementación de scikit-learn ni por `BaggingClassifier`. Su semilla permanece
+fija en 42 para que la búsqueda sea comparable y reproducible, no como una
+variable que pueda alterar artificialmente la selección.
+
 ## Pruebas
 
 Ejecute las pruebas unitarias sin requerir el CSV de Kaggle:
@@ -147,4 +234,4 @@ Ejecute las pruebas unitarias sin requerir el CSV de Kaggle:
 pytest
 ```
 
-Cubren carga y validación del CSV, separación de `X` e `y`, división estratificada reproducible 70/30, ausencia de solapamiento por índice, prevención de `Class` como predictor, ajuste de transformadores solo con entrenamiento e integración de escalado y selección dentro de pipelines y cinco folds estratificados.
+Cubren carga y validación del CSV, separación de `X` e `y`, división estratificada reproducible 70/30, ausencia de solapamiento por índice, prevención de `Class` como predictor, ajuste de transformadores solo con entrenamiento, integración de escalado y selección dentro de pipelines, cinco folds estratificados, sobremuestreo aislado al training fold, las ocho condiciones y el desempate recall/precision.
