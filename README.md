@@ -65,7 +65,7 @@ La configuración central está en `src/config.py`:
 
 - `RANDOM_STATE = 42`
 - `TEST_SIZE = 0.30`
-- `N_SPLITS = 5` (reservado para la validación cruzada de una issue posterior)
+- `N_SPLITS = 5` (validación cruzada estratificada de Issue #7)
 
 La división oficial es 70 % entrenamiento y 30 % prueba, estratificada por `Class`. Aunque una descripción anterior de la issue mencionaba 70/15/15, se aplica el enunciado oficial: no se crea un conjunto de validación fijo. El conjunto de prueba se reserva intacto para la evaluación final. Además, la división mantiene los registros con predictores idénticos juntos para que una copia exacta no aparezca en entrenamiento y prueba a la vez.
 
@@ -158,20 +158,39 @@ siempre clase 0 alcanzaría cerca de 99.83 % de accuracy y, aun así, tendría r
 si dos configuraciones empatan dentro de `1e-9`, se escoge la de mayor precision
 de fraude.
 
-La ejecución reproducible completa es:
+La ejecución predeterminada usa una muestra estratificada reproducible de 30 000
+registros, suficiente para conservar fraudes en el entrenamiento y sus cinco
+folds. El muestreo ocurre antes de la única división 70/30; no ajusta
+transformadores y el mismo subconjunto se entrega a los cuatro clasificadores:
 
 ```bash
-.venv/bin/python scripts/run_issue_7.py
+.venv/bin/python scripts/run_issue_7.py --sample-size 30000
 ```
+
+También puede usar el dataset completo, con el coste considerablemente mayor de
+SVC con kernel RBF y del Random Forest propio:
+
+```bash
+.venv/bin/python scripts/run_issue_7.py --full-dataset
+```
+
+`--sample-size` admite valores desde 10 000 y emplea `random_state=42`. El
+script registra el modo, la semilla, el tamaño, los conteos por clase del origen,
+la muestra, entrenamiento y test, el total de candidatos y el tiempo total real.
+Los resultados con muestra deben interpretarse
+como resultados de esa muestra, no como resultados del dataset completo.
 
 El script realiza únicamente la selección usando el 70 % de entrenamiento y deja
 el 30 % de prueba aislado. Genera localmente, sin versionarlos, estos artefactos:
 
 - `results/tables/issue_7_class_imbalance.csv`
+- `results/tables/issue_7_source_class_imbalance.csv`
 - `results/figures/issue_7_class_distribution.png`
 - `results/tables/issue_7_cv_results.csv` (las ocho configuraciones finales)
 - `results/tables/issue_7_cv_candidates.csv` (todos los candidatos evaluados)
-- `results/tables/issue_7_fold_balance.csv` (conteos de entrenamiento antes y después en cada fold)
+- `results/tables/issue_7_fold_balance.csv` (conteos de entrenamiento y validación por fold)
+- `results/tables/issue_7_run_metadata.csv` (muestra, clases y semilla)
+- `results/tables/issue_7_timings.csv` (preprocesamiento, sobremuestreo y condiciones)
 
 ### Validación y prevención de fuga
 
@@ -192,7 +211,15 @@ escalado (cuando corresponde) → selección por información mutua
 
 La selección fija las 10 variables con mayor información mutua para esta ronda
 de experimentos, pero aprende esas variables nuevamente dentro de cada training
-fold; no se ajusta una vez sobre el dataset completo.
+fold; no se ajusta una vez sobre el dataset completo. Para evitar cálculos
+redundantes, la búsqueda conserva una caché local por `(tipo de escalado, fold)`:
+se ajustan y transforman una sola vez las filas de entrenamiento y validación, y
+los candidatos que comparten esas mismas filas reutilizan el resultado. k-NN y
+SVM comparten la clave con escalado estándar; Árbol y Random Forest propio la
+comparten sin escalado. La caché nunca se comparte entre folds, ni con test. En
+la búsqueda completa esto reduce los ajustes de selector/escalador de 168 (8
+condiciones × 4 candidatos × 5 folds, más 8 ajustes finales) a 12 (dos tipos de
+preprocesamiento × cinco folds, más dos ajustes finales).
 
 El `RandomOverSampler` propio se utiliza porque `imbalanced-learn` no es una
 dependencia del proyecto. Conserva todas las muestras de entrenamiento y duplica
@@ -204,8 +231,10 @@ del training fold. Para árboles y el Random Forest propio el escalado es
 
 El resultado principal incluye explícitamente `class_0_before`, `class_1_before`,
 `class_0_after` y `class_1_after`; corresponden al ajuste final sobre el 70 % de
-entrenamiento. La tabla por fold permite verificar los mismos conteos dentro de
-la validación cruzada y que los validation folds nunca fueron balanceados.
+entrenamiento. También registra características seleccionadas, cantidad de
+candidatos, recall medio/desviación estándar, precision, y tiempos de búsqueda y
+ajuste final. La tabla por fold contiene además los conteos de validación para
+verificar que los validation folds nunca fueron balanceados.
 
 ### Espacios de búsqueda acotados
 
@@ -219,12 +248,29 @@ mismos cinco folds.
 | k-NN | `n_neighbors` = 3, 5, 7, 11; `weights` = uniform/distance; `metric` = euclidean/manhattan en cuatro combinaciones representativas |
 | SVM | `kernel` = linear/rbf; `C` = 0.5/2.0; `gamma` = scale/0.1 solo para RBF (sin combinaciones inválidas) |
 | Árbol | `max_depth` = None/12; `min_samples_split` = 2/20; `min_samples_leaf` = 1/5; `criterion` = gini/entropy en cuatro combinaciones representativas |
-| Random Forest propio | `n_estimators` = 5/10; `max_depth` = None/12; `max_features` = sqrt/log2 en cuatro combinaciones representativas |
+| Random Forest propio | `n_estimators` = 5/11; `max_depth` = None/12; `max_features` = sqrt/log2 en cuatro combinaciones representativas |
 
 El Random Forest se mantiene como `CustomRandomForest`; no se sustituye por la
 implementación de scikit-learn ni por `BaggingClassifier`. Su semilla permanece
 fija en 42 para que la búsqueda sea comparable y reproducible, no como una
-variable que pueda alterar artificialmente la selección.
+variable que pueda alterar artificialmente la selección. Todos los candidatos
+usan una cantidad impar de árboles (5 u 11), evitando empates en la votación
+mayoritaria; la regla de desempate del modelo sigue presente como defensa
+adicional. La búsqueda rechaza explícitamente cualquier candidato par.
+
+SVC conserva los kernels `linear` y `rbf`, con `C=0.5/2.0`; `gamma` se explora
+solo para RBF. No se establece un límite artificial de iteraciones: un ajuste no
+convergido no se oculta como resultado válido. La búsqueda registra advertencias
+de convergencia por candidato y añade contexto de modelo, condición, candidato y
+fold a cualquier error. El costo dominante restante es RBF sobre el training set
+sobremuestreado; la caché reduce información mutua y escalado, pero no elimina
+entrenamientos necesarios para mantener la comparación experimental.
+
+`issue_7_timings.csv` contiene el tiempo real de cada preprocesamiento y
+sobremuestreo compartido, además de búsqueda, ajuste final y tiempo por condición.
+La consola muestra el tiempo total de ejecución. Las ocho filas de
+`issue_7_cv_results.csv` se identifican por modelo y `balanced`, y mantienen los
+campos necesarios para reutilizar la selección posterior.
 
 ## Pruebas
 
@@ -234,4 +280,10 @@ Ejecute las pruebas unitarias sin requerir el CSV de Kaggle:
 pytest
 ```
 
-Cubren carga y validación del CSV, separación de `X` e `y`, división estratificada reproducible 70/30, ausencia de solapamiento por índice, prevención de `Class` como predictor, ajuste de transformadores solo con entrenamiento, integración de escalado y selección dentro de pipelines, cinco folds estratificados, sobremuestreo aislado al training fold, las ocho condiciones y el desempate recall/precision.
+Cubren carga y validación del CSV, separación de `X` e `y`, división y muestreo
+estratificado reproducibles, ausencia de solapamiento por índice, prevención de
+`Class` como predictor, ajuste de transformadores solo con entrenamiento,
+integración de escalado y selección dentro de pipelines, cinco folds
+compartidos, caché de transformaciones equivalente, sobremuestreo aislado al
+training fold, las ocho condiciones, árboles impares y el desempate
+recall/precision.
