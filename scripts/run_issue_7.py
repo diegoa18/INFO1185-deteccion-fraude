@@ -139,7 +139,7 @@ def _assert_enough_fraud_for_cv(train_target: pd.Series) -> None:
     if fraud_count < N_SPLITS:
         raise ValueError(
             f"La partición de entrenamiento solo contiene {fraud_count} fraudes; "
-            f"se requieren al menos {N_SPLITS} para StratifiedKFold."
+            f"se requieren al menos {N_SPLITS} para la validación cruzada estratificada."
         )
 
 
@@ -238,7 +238,8 @@ def main(argv: list[str] | None = None) -> None:
     print(summary.to_string(index=False))
     print(
         "\nFolds compartidos: "
-        f"StratifiedKFold(n_splits={shared_cv.n_splits}, "
+        f"{'StratifiedGroupKFold' if X_train.duplicated().any() else 'StratifiedKFold'}"
+        f"(n_splits={shared_cv.n_splits}, "
         f"shuffle={shared_cv.shuffle}, random_state={shared_cv.random_state})"
     )
     print(
