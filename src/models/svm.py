@@ -8,8 +8,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC
 
 from src.config import RANDOM_STATE
-from src.data.preprocess import ScalerName, create_scaler
-from src.features.feature_selection import make_mutual_information_selector
+from src.data.preprocess import ScalerName
+from src.models.pipeline_utils import create_preprocessing_pipeline
 
 SVMKernel = Literal["linear", "poly", "rbf", "sigmoid"]
 
@@ -36,16 +36,14 @@ def create_svm_pipeline(
     if "random_state" in svc_kwargs:
         svc_kwargs.pop("random_state")
 
+    preprocessor = create_preprocessing_pipeline(
+        scaler_kind=scaler_kind,
+        k_features=k_features,
+        random_state=random_state,
+    )
     return Pipeline(
         [
-            ("scale", create_scaler(scaler_kind)),
-            (
-                "select",
-                make_mutual_information_selector(
-                    k=k_features,
-                    random_state=random_state,
-                ),
-            ),
+            *preprocessor.steps,
             (
                 "classifier",
                 SVC(

@@ -7,7 +7,7 @@ from .load_data import (
     load_dataset,
     separate_features_target,
 )
-from .preprocess import clean_dataset, create_scaler, stratified_train_test_split
+from .preprocess import clean_dataset, create_scaler, stratified_sample, stratified_train_test_split
 
 __all__ = [
     "DatasetValidationError",
@@ -17,5 +17,6 @@ __all__ = [
     "diagnose_dataset",
     "load_dataset",
     "separate_features_target",
+    "stratified_sample",
     "stratified_train_test_split",
 ]

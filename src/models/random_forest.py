@@ -20,7 +20,7 @@ class CustomRandomForest(BaseEstimator, ClassifierMixin):
         criterion: str = "gini",
         class_weight: dict | str | None = None,
         scaler_kind: ScalerName = "none",
-        k_features: int | str = "all",
+        k_features: int | str | None = "all",
         random_state: int = RANDOM_STATE,
     ):
         self.n_estimators = n_estimators

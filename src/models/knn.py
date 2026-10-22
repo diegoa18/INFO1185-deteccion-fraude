@@ -8,8 +8,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 
 from src.config import RANDOM_STATE
-from src.data.preprocess import ScalerName, create_scaler
-from src.features.feature_selection import make_mutual_information_selector
+from src.data.preprocess import ScalerName
+from src.models.pipeline_utils import create_preprocessing_pipeline
 
 
 def create_knn_classifier(
@@ -58,9 +58,13 @@ def create_knn_pipeline(
     únicamente con los datos de entrenamiento recibidos, evitando fuga de
     información durante la validación cruzada.
     """
+    preprocessor = create_preprocessing_pipeline(
+        scaler_kind=scaler_kind,
+        k_features=k_features,
+        random_state=random_state,
+    )
     pipeline_steps = [
-        ("scale", create_scaler(scaler_kind)),
-        ("select", make_mutual_information_selector(k=k_features, random_state=random_state)),
+        *preprocessor.steps,
         (
             "classifier",
             create_knn_classifier(
