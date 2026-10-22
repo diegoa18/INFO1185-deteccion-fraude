@@ -6,6 +6,7 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from src.config import RANDOM_STATE, TARGET_COLUMN, TEST_SIZE
@@ -86,6 +87,50 @@ def stratified_train_test_split(
         features.iloc[test_position_array].copy(),
         target.iloc[train_position_array].copy(),
         target.iloc[test_position_array].copy(),
+    )
+
+
+def stratified_sample(
+    features: pd.DataFrame,
+    target: pd.Series,
+    *,
+    sample_size: int,
+    random_state: int = RANDOM_STATE,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Extrae un subconjunto reproducible sin alterar la proporción de clases.
+
+    El muestreo se realiza antes de la división oficial 70/30. No ajusta ni
+    inspecciona transformadores, por lo que el escalador, selector y
+    sobremuestreador siguen aprendiendo exclusivamente del training fold. El
+    resultado conserva los índices originales para poder auditar que los
+    conjuntos posteriores no se solapan.
+    """
+    _validate_features_target(features, target)
+    if isinstance(sample_size, bool) or not isinstance(sample_size, int):
+        raise ValueError("sample_size debe ser un entero positivo.")
+    if sample_size <= 0:
+        raise ValueError("sample_size debe ser un entero positivo.")
+    if sample_size > len(features):
+        raise ValueError("sample_size no puede superar la cantidad de registros disponible.")
+    if sample_size == len(features):
+        return features.copy(), target.copy()
+
+    class_counts = target.value_counts()
+    if len(class_counts) < 2:
+        raise ValueError("El muestreo estratificado requiere al menos dos clases.")
+    if sample_size < len(class_counts):
+        raise ValueError("sample_size es demasiado pequeño para conservar todas las clases.")
+
+    positions = np.arange(len(features))
+    selected_positions, _ = train_test_split(
+        positions,
+        train_size=sample_size,
+        stratify=target.to_numpy(),
+        random_state=random_state,
+    )
+    return (
+        features.iloc[selected_positions].copy(),
+        target.iloc[selected_positions].copy(),
     )
 
 

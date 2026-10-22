@@ -9,6 +9,7 @@ solo de dicho resultado y ajuste del clasificador.
 from __future__ import annotations
 
 from collections.abc import Hashable
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -50,8 +51,39 @@ class LeakageSafeResamplingPipeline(ClassifierMixin, BaseEstimator):
         if len(y_values) == 0:
             raise ValueError("No es posible entrenar con un conjunto vacío.")
 
-        self.preprocessor_ = clone(self.preprocessor)
-        transformed_X = self.preprocessor_.fit_transform(X, y_values)
+        fitted_preprocessor = clone(self.preprocessor).fit(X, y_values)
+        transformed_X = fitted_preprocessor.transform(X)
+        return self.fit_from_preprocessed(
+            fitted_preprocessor=fitted_preprocessor,
+            transformed_X=transformed_X,
+            y=y_values,
+        )
+
+    def fit_from_preprocessed(
+        self,
+        *,
+        fitted_preprocessor: BaseEstimator,
+        transformed_X: pd.DataFrame | np.ndarray,
+        y: pd.Series | np.ndarray,
+    ) -> "LeakageSafeResamplingPipeline":
+        """Ajusta el clasificador a una transformación ya aprendida de forma segura.
+
+        Esta variante permite que una búsqueda reutilice el mismo escalador y
+        selector para candidatos que comparten exactamente el mismo training
+        fold. El llamador debe haber ajustado ``fitted_preprocessor`` y obtenido
+        ``transformed_X`` *solo* a partir de las filas de entrenamiento de esa
+        llamada. Se realiza una copia profunda del preprocesador ajustado para
+        que el estimador resultante sea independiente de la caché.
+        """
+        y_values = np.asarray(y)
+        if y_values.ndim != 1:
+            raise ValueError("y debe ser un arreglo unidimensional.")
+        if len(transformed_X) != len(y_values):
+            raise ValueError("transformed_X e y deben tener la misma cantidad de filas.")
+        if len(y_values) == 0:
+            raise ValueError("No es posible entrenar con un conjunto vacío.")
+
+        self.preprocessor_ = deepcopy(fitted_preprocessor)
         self.classifier_ = clone(self.classifier)
         self.class_counts_before_ = _class_counts(y_values)
 

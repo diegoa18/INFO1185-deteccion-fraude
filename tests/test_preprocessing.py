@@ -13,7 +13,12 @@ from src.data.load_data import (
     load_dataset,
     separate_features_target,
 )
-from src.data.preprocess import clean_dataset, create_scaler, stratified_train_test_split
+from src.data.preprocess import (
+    clean_dataset,
+    create_scaler,
+    stratified_sample,
+    stratified_train_test_split,
+)
 from src.features.feature_selection import make_mutual_information_selector, selected_feature_names
 from src.validation import make_stratified_kfold, materialize_stratified_folds
 
@@ -167,6 +172,29 @@ def test_stratified_five_fold_configuration_is_reproducible_and_uses_training_on
     cv = make_stratified_kfold()
     assert cv.n_splits == 5
     assert cv.shuffle is True
+
+
+def test_stratified_sample_is_reproducible_and_preserves_class_proportions(synthetic_dataset):
+    features, target = separate_features_target(synthetic_dataset)
+    enlarged_features = pd.concat([features] * 10, ignore_index=True)
+    enlarged_target = pd.concat([target] * 10, ignore_index=True)
+
+    first_features, first_target = stratified_sample(
+        enlarged_features,
+        enlarged_target,
+        sample_size=300,
+    )
+    second_features, second_target = stratified_sample(
+        enlarged_features,
+        enlarged_target,
+        sample_size=300,
+    )
+
+    pd.testing.assert_frame_equal(first_features, second_features)
+    pd.testing.assert_series_equal(first_target, second_target)
+    assert first_target.value_counts().to_dict() == {0: 270, 1: 30}
+    assert first_target.mean() == pytest.approx(enlarged_target.mean())
+    assert TARGET_COLUMN not in first_features
 
 
 def test_cross_validation_rejects_target_as_feature(synthetic_dataset):
