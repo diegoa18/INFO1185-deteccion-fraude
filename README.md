@@ -194,15 +194,32 @@ el 30 % de prueba aislado. Genera localmente, sin versionarlos, estos artefactos
 
 ### Validación y prevención de fuga
 
-Se crea una sola vez y se reutiliza para los cuatro modelos, con y solo con el
-conjunto de entrenamiento:
+`materialize_stratified_folds` crea una sola vez los cinco folds sobre el 70 %
+de entrenamiento y congela sus índices para los cuatro modelos y ambas condiciones.
+Agrupa por la tupla completa de predictores, excluyendo `Class` y el índice:
+con duplicados usa `StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)`;
+sin duplicados conserva exactamente `StratifiedKFold` y sus particiones anteriores.
+No elimina filas. Cada fila aparece una vez en validación y ningún grupo se
+comparte con el entrenamiento del mismo fold, incluso con etiquetas distintas.
 
-```python
-StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-```
+El argumento `cv` acepta `StratifiedKFold` (adaptado a grupos cuando corresponde,
+conservando `n_splits`, `shuffle` y `random_state`) o `StratifiedGroupKFold` explícito.
+Otros tipos, incluidas subclases personalizadas, se rechazan con error para no
+ignorar su estrategia. `make_stratified_kfold` y `create_issue7_cv` conservan su API;
+para obtener la protección contra duplicados se deben materializar los folds.
 
-`materialize_stratified_folds` congela los mismos índices antes de iniciar las
-ocho búsquedas. Cada llamada a `fit` sigue este orden dentro del training fold:
+La estratificación por grupos es aproximada: no se separan duplicados para forzar
+tamaños ni proporciones exactas. Se exige un mínimo de cinco grupos que contengan
+cada clase y se comprueba que cada fold generado tenga ambas clases en training y
+validación. Si la heurística no lo consigue, se produce un error claro antes de
+entrenar; no se garantiza encontrar toda partición matemáticamente factible.
+Los conteos reales quedan en `issue_7_fold_balance.csv`; la proporción de fraude
+se obtiene como `validation_class_1 / (validation_class_0 + validation_class_1)`.
+
+**Los resultados previos de CV deben regenerarse cuando cambian los folds.**
+El objetivo de esta corrección es eliminar contaminación, no mejorar métricas.
+
+Cada llamada a `fit` sigue este orden dentro del training fold:
 
 ```text
 escalado (cuando corresponde) → selección por información mutua
@@ -287,3 +304,36 @@ integración de escalado y selección dentro de pipelines, cinco folds
 compartidos, caché de transformaciones equivalente, sobremuestreo aislado al
 training fold, las ocho condiciones, árboles impares y el desempate
 recall/precision.
+
+### Auditoría de duplicados en CV (semilla 42)
+
+Auditoría local sobre `creditcard.csv` con scikit-learn 1.9.1, sin entrenar
+modelos ni usar resultados de prueba. Conteos escritos como `(legítimos, fraudes)`; los grupos se forman antes
+del escalado y de la selección. Verificación de cobertura exacta, reproducibilidad,
+ambas clases y ausencia de grupos cruzados en los cinco folds.
+
+| Muestra | Training total | Validación antes (folds 1–5) | Validación después (folds 1–5) | Cruces antes → después |
+|---|---|---|---|---|
+| 10.000 | (6988, 12) | (1398,2); (1398,2); (1398,2); (1397,3); (1397,3) | Sin cambios | 0,0,0,0,0 → 0,0,0,0,0 |
+| 30.000 | (20964, 36) | (4193,7); (4193,7); (4193,7); (4193,7); (4192,8) | (4193,7); (4193,7); (4193,7); (4192,8); (4193,7) | 2,3,2,3,2 → 0,0,0,0,0 |
+
+Los conteos de training por fold son el total menos su validación. Los 12 cruces
+anteriores en 30.000 eran observaciones legítimas; los fraudulentos cruzados eran
+cero. Porcentajes reales de fraude en validación: 10.000, antes y después,
+`0,142857; 0,142857; 0,142857; 0,214286; 0,214286 %`; 30.000, antes,
+`0,166667; 0,166667; 0,166667; 0,166667; 0,190476 %`, y después,
+`0,166667; 0,166667; 0,166667; 0,190476; 0,166667 %`.
+
+La regresión `tests/test_cross_validation.py` incluye duplicados legítimos y
+fraudulentos y fallaba por contaminación con la implementación anterior. También
+cubre configuración explícita de CV, grupos con etiquetas distintas, índices
+repetidos, casos inviables y conservación exacta de folds sin duplicados.
+
+Verificación local de la corrección: regresión fallida antes y aprobada después;
+`.venv/bin/python -m pytest -q`: **52 pruebas aprobadas**.
+Ejecuciones de `scripts/run_issue_7.py --sample-size 10000` y `--sample-size 30000`
+con `.venv/bin/python`: completadas en **16,06 s** y **130,45 s**, respectivamente,
+con ocho condiciones y 32 candidatos por ejecución. No se entrenó con el dataset
+completo ni se evaluó test. Los artefactos habituales de `results/` corresponden
+a la última ejecución (30.000); la auditoría antes/después está en
+`results/tables/issue_7_cv_duplicate_audit.csv` (local, no versionada).

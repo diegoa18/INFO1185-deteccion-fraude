@@ -340,7 +340,7 @@ class _PreprocessingCache:
 
 
 def create_issue7_cv() -> StratifiedKFold:
-    """Devuelve el único esquema común: 5 folds, shuffle y semilla 42."""
+    """Configura 5 folds, shuffle y semilla 42; materializar adapta los grupos."""
     return make_stratified_kfold(n_splits=5, random_state=RANDOM_STATE)
 
 

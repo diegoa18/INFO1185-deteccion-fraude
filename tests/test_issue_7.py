@@ -108,8 +108,12 @@ def test_custom_random_forest_default_search_uses_only_odd_tree_counts():
     assert all(tree_count % 2 == 1 for values in candidates for tree_count in values)
 
 
-def test_issue_7_runs_eight_conditions_on_exactly_shared_folds(imbalanced_dataset):
+@pytest.mark.parametrize("duplicates", [False, True])
+def test_issue_7_runs_eight_conditions_on_exactly_shared_folds(imbalanced_dataset, duplicates):
     features, target = imbalanced_dataset
+    if duplicates:
+        features = features.iloc[np.repeat(np.arange(0, 100, 2), 2)].copy()
+        features.index = target.index
     folds = materialize_stratified_folds(features, target, cv=create_issue7_cv())
     small_spaces = {
         "knn": [
