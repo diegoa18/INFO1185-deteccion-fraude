@@ -337,3 +337,4 @@ con ocho condiciones y 32 candidatos por ejecución. No se entrenó con el datas
 completo ni se evaluó test. Los artefactos habituales de `results/` corresponden
 a la última ejecución (30.000); la auditoría antes/después está en
 `results/tables/issue_7_cv_duplicate_audit.csv` (local, no versionada).
+- `results/tables/issue_8_run_metadata.csv` e `issue_8_execution_log.txt`: Registro del tiempo total de la evaluación final y metadatos de la muestra utilizada.

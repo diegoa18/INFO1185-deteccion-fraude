@@ -7,8 +7,7 @@ Ejemplos desde la raíz del repositorio:
 
 Las configuraciones se seleccionan únicamente con validación cruzada sobre el
 70 % de entrenamiento (Issue #7) y luego se evalúan una sola vez sobre el 30 %
-de prueba reservado. Los resultados de validación y prueba se reportan por
-separado conforme a la sección 4.6 del enunciado.
+de prueba reservado. Se exportan los registros completos de la ejecución.
 """
 
 from __future__ import annotations
@@ -16,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 from time import perf_counter
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> None:
         full_dataset=arguments.full_dataset,
     )
 
+    # Semilla unificada estrictamente en la partición oficial 70/30
     X_train, X_test, y_train, y_test = stratified_train_test_split(
         X,
         y,
@@ -64,6 +65,7 @@ def main(argv: list[str] | None = None) -> None:
     shared_cv = create_issue7_cv()
     shared_folds = materialize_stratified_folds(X_train, y_train, cv=shared_cv)
 
+    # Semilla unificada estrictamente en todo el módulo de evaluación
     evaluation = run_issue8_evaluation(
         X_train,
         X_test,
@@ -73,13 +75,15 @@ def main(argv: list[str] | None = None) -> None:
         random_state=RANDOM_STATE,
     )
 
-    # Guardar tablas separadas de validación cruzada y prueba (Sección 4.6)
+    # Guardar tablas CSV separadas
     val_path = TABLES_DIRECTORY / "issue_8_validation_metrics.csv"
     test_path = TABLES_DIRECTORY / "issue_8_test_metrics.csv"
     combined_path = TABLES_DIRECTORY / "issue_8_combined_comparison.csv"
     cm_path = TABLES_DIRECTORY / "issue_8_confusion_matrices.csv"
     baselines_path = TABLES_DIRECTORY / "issue_8_extreme_baselines.csv"
     best_path = TABLES_DIRECTORY / "issue_8_best_model.csv"
+    meta_path = TABLES_DIRECTORY / "issue_8_run_metadata.csv"
+    log_path = TABLES_DIRECTORY / "issue_8_execution_log.txt"
 
     evaluation.validation_metrics.to_csv(val_path, index=False)
     evaluation.test_metrics.to_csv(test_path, index=False)
@@ -88,38 +92,45 @@ def main(argv: list[str] | None = None) -> None:
     evaluation.extreme_baselines.to_csv(baselines_path, index=False)
     evaluation.best_model_summary.to_csv(best_path, index=False)
 
-    # Generar figuras comparativas y matrices de confusión
+    elapsed = perf_counter() - started_at
+
+    metadata = pd.DataFrame([{
+        "sampling_mode": sampling_mode,
+        "random_state": RANDOM_STATE,
+        "total_rows": len(y),
+        "train_rows": len(X_train),
+        "test_rows": len(X_test),
+        "total_seconds": elapsed,
+    }])
+    metadata.to_csv(meta_path, index=False)
+
+    # Generar figuras
     cm_fig_path = FIGURES_DIRECTORY / "issue_8_confusion_matrices.png"
     comp_fig_path = FIGURES_DIRECTORY / "issue_8_metrics_comparison.png"
-
     fig_cm, _ = plot_confusion_matrices_grid(evaluation.confusion_matrices, cm_fig_path)
     fig_cm.clear()
     fig_comp, _ = plot_metrics_comparison(evaluation.test_metrics, comp_fig_path)
     fig_comp.clear()
 
-    elapsed = perf_counter() - started_at
-
-    print(
+    log_content = (
         f"Modo={sampling_mode} | Filas={len(y)} "
-        f"(Train={len(y_train)}, Test={len(y_test)}) | Semilla={RANDOM_STATE}"
+        f"(Train={len(y_train)}, Test={len(y_test)}) | Semilla={RANDOM_STATE}\n\n"
+        "1. RESULTADOS EN VALIDACIÓN CRUZADA (5 FOLDS SOBRE 70 % TRAIN):\n"
+        f"{evaluation.validation_metrics.to_string(index=False)}\n\n"
+        "2. RESULTADOS EN CONJUNTO DE PRUEBA RESERVADO (30 % TEST):\n"
+        f"{evaluation.test_metrics.to_string(index=False)}\n\n"
+        "3. MATRICES DE CONFUSIÓN EN PRUEBA:\n"
+        f"{evaluation.confusion_matrices.to_string(index=False)}\n\n"
+        "4. CLASIFICADORES EXTREMOS DE REFERENCIA (SECCIÓN 4.7):\n"
+        f"{evaluation.extreme_baselines.to_string(index=False)}\n\n"
+        "5. MEJOR CONFIGURACIÓN SELECCIONADA (POR CV) Y SU DESEMPEÑO EN PRUEBA:\n"
+        f"{evaluation.best_model_summary.to_string(index=False)}\n\n"
+        f"Tiempo total: {elapsed:.2f} s\n"
     )
-    print("\n1. RESULTADOS EN VALIDACIÓN CRUZADA (5 FOLDS SOBRE 70 % TRAIN):")
-    print(evaluation.validation_metrics.to_string(index=False))
 
-    print("\n2. RESULTADOS EN CONJUNTO DE PRUEBA RESERVADO (30 % TEST):")
-    print(evaluation.test_metrics.to_string(index=False))
-
-    print("\n3. MATRICES DE CONFUSIÓN EN PRUEBA:")
-    print(evaluation.confusion_matrices.to_string(index=False))
-
-    print("\n4. CLASIFICADORES EXTREMOS DE REFERENCIA (SECCIÓN 4.7):")
-    print(evaluation.extreme_baselines.to_string(index=False))
-
-    print("\n5. MEJOR CONFIGURACIÓN SELECCIONADA (POR CV) Y SU DESEMPEÑO EN PRUEBA:")
-    print(evaluation.best_model_summary.to_string(index=False))
-
-    print(f"\nTiempo total: {elapsed:.2f} s")
-    print(f"Tablas guardadas en: {TABLES_DIRECTORY}")
+    log_path.write_text(log_content, encoding="utf-8")
+    print(log_content)
+    print(f"Tablas y logs guardados en: {TABLES_DIRECTORY}")
     print(f"Figuras guardadas en: {FIGURES_DIRECTORY}")
 
 

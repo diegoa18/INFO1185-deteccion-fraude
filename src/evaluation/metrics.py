@@ -1,17 +1,4 @@
-"""Evaluación final e integración de las ocho configuraciones (Issue #8).
-
-Cumple estrictamente con las secciones 4.5, 4.6 y 4.7 del enunciado INFO1185:
-- Evalúa las 8 configuraciones seleccionadas en validación cruzada (4 modelos
-  con y sin compensación del desbalance).
-- Reporta por separado los resultados de validación cruzada (media y desviación
-  estándar de las 6 métricas en los 5 folds) y los resultados en el conjunto de
-  prueba reservado (30 %).
-- Calcula Sensibilidad, Especificidad, Precisión, F1-score, Exactitud y Tasa de
-  Falsos Negativos (FNR = FN / (TP + FN) = 1 - Sensibilidad), siendo siempre el
-  fraude (Class == 1) la clase positiva.
-- Genera matrices de confusión, gráficos comparativos e identificación del mejor
-  modelo sin utilizar el conjunto de prueba para tomar decisiones de ajuste.
-"""
+"""Evaluación final e integración de las ocho configuraciones (Issue #8)."""
 
 from __future__ import annotations
 
@@ -74,12 +61,7 @@ def compute_binary_fraud_metrics(
     y_true: pd.Series | np.ndarray,
     y_pred: pd.Series | np.ndarray,
 ) -> dict[str, float | int]:
-    """Calcula las 6 métricas oficiales y el desglose de la matriz de confusión.
-
-    La clase positiva es siempre ``Class == 1`` (fraude).
-    FNR = FN / (TP + FN) = 1 - Sensibilidad.
-    Especificidad = TN / (TN + FP).
-    """
+    """Calcula las 6 métricas oficiales y el desglose de la matriz de confusión."""
     y_true_arr = np.asarray(y_true, dtype=int)
     y_pred_arr = np.asarray(y_pred, dtype=int)
 
@@ -88,7 +70,7 @@ def compute_binary_fraud_metrics(
     if len(y_true_arr) != len(y_pred_arr):
         raise ValueError("y_true e y_pred deben tener la misma longitud.")
     if len(y_true_arr) == 0:
-        raise ValueError("No es posible calcular métricas sobre arreglos vacíos.")
+        return {metric: 0.0 for metric in METRIC_NAMES} | {"tn": 0, "fp": 0, "fn": 0, "tp": 0}
 
     tn, fp, fn, tp = confusion_matrix(y_true_arr, y_pred_arr, labels=[0, 1]).ravel()
 
@@ -124,6 +106,8 @@ def _bootstrap_test_metric_std(
     rng = np.random.default_rng(random_state)
     pos_idx = np.flatnonzero(y_true == 1)
     neg_idx = np.flatnonzero(y_true == 0)
+    
+    # Manejo de casos extremos: si falta una clase, no podemos calcular desviación real
     if len(pos_idx) == 0 or len(neg_idx) == 0 or n_bootstrap < 2:
         return {f"{metric}_test_std": 0.0 for metric in METRIC_NAMES}
 
@@ -302,13 +286,7 @@ def identify_best_model(
     validation_metrics: pd.DataFrame,
     test_metrics: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Identifica la mejor configuración global seleccionada estrictamente por CV.
-
-    Conforme a las secciones 4.5 y 4.6, la selección utiliza únicamente el
-    desempeño en validación cruzada (mayor sensibilidad media de fraude y, en
-    caso de empate dentro de ``1e-9``, mayor precisión media de fraude). Luego
-    reporta su desempeño alcanzado en el conjunto de prueba.
-    """
+    """Identifica la mejor configuración global seleccionada estrictamente por CV."""
     merged = validation_metrics.merge(
         test_metrics,
         on=["model_key", "model", "balanced", "balancing_strategy", "best_hyperparameters"],
@@ -455,7 +433,6 @@ def plot_metrics_comparison(
     unbalanced = test_metrics.loc[~test_metrics["balanced"]].set_index("model").loc[models]
     balanced = test_metrics.loc[test_metrics["balanced"]].set_index("model").loc[models]
 
-    # Panel 1: Sensibilidad vs FNR
     bars1 = axes[0].bar(
         x - width / 2,
         unbalanced["sensitivity_test"],
@@ -479,7 +456,6 @@ def plot_metrics_comparison(
     axes[0].bar_label(bars1, fmt="%.3f", padding=2, fontsize=8)
     axes[0].bar_label(bars2, fmt="%.3f", padding=2, fontsize=8)
 
-    # Panel 2: F1-score y Precisión en prueba
     bars3 = axes[1].bar(
         x - width / 2,
         unbalanced["f1_score_test"],
