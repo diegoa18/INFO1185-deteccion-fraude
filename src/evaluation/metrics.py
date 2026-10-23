@@ -327,6 +327,8 @@ def run_issue8_evaluation(
     random_state: int = RANDOM_STATE,
 ) -> Issue8EvaluationResults:
     """Ejecuta el flujo completo de integración y evaluación final en prueba."""
+    if random_state != RANDOM_STATE:
+        raise ValueError(f"random_state debe ser exactamente {RANDOM_STATE} en todo el pipeline para evitar fuga o sesgos.")
     if issue7_results is None:
         shared_folds = (
             tuple(folds)
