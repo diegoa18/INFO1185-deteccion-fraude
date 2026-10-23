@@ -337,3 +337,23 @@ con ocho condiciones y 32 candidatos por ejecución. No se entrenó con el datas
 completo ni se evaluó test. Los artefactos habituales de `results/` corresponden
 a la última ejecución (30.000); la auditoría antes/después está en
 `results/tables/issue_7_cv_duplicate_audit.csv` (local, no versionada).
+- `results/tables/issue_8_run_metadata.csv` e `issue_8_execution_log.txt`: Registro del tiempo total de la evaluación final y metadatos de la muestra utilizada.
+
+### Resultados de la Evaluación Final (Muestra de 30.000 registros, Semilla 42)
+
+Conforme a las secciones 4.5, 4.6 y 4.7 del proyecto, se evaluaron los 4 clasificadores en condiciones con y sin compensación del desbalance (8 configuraciones totales). 
+
+**1. Modelo Seleccionado:**
+El modelo ganador, seleccionado estrictamente mediante validación cruzada (sin observar el conjunto de prueba), fue **SVM (Con balanceo)**.
+
+**2. Justificación:**
+Se seleccionó esta configuración por maximizar la **Sensibilidad media (Recall)** en la detección de fraudes durante los 5 folds de validación cruzada, logrando el objetivo prioritario del proyecto: minimizar la tasa de falsos negativos (FNR).
+
+**3. Desempeño en el Conjunto de Prueba:**
+Al reentrenar SVM con balanceo usando todo el 70 % de entrenamiento y evaluarlo en el 30 % de prueba reservado, se obtuvieron las siguientes métricas clave para la clase Fraude (`Class == 1`):
+- **Sensibilidad (Recall):** 87,5 %
+- **Tasa de Falsos Negativos (FNR):** 12,5 %
+- **Precisión:** 5,62 %
+
+**4. Impacto de Falsas Alarmas (Limitación técnica):**
+Aunque la configuración cumple de forma excelente con el objetivo primario de detectar la gran mayoría de los fraudes reales (87,5 % de acierto), la precisión del 5,62 % revela una limitación crítica. Esto significa que existe un gran volumen de falsas alarmas (transacciones legítimas predichas erróneamente como fraude). Si bien esto obedece a la instrucción técnica de priorizar los falsos negativos, operativamente representaría un alto costo de fricción con los clientes y un gasto excesivo en horas de revisión manual.
