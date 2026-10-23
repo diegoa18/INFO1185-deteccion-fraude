@@ -1,5 +1,3 @@
-"""Evaluación final e integración de las ocho configuraciones (Issue #8)."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -46,8 +44,6 @@ METRIC_NAMES = (
 
 @dataclass
 class Issue8EvaluationResults:
-    """Artefactos completos de la evaluación final e integración (Issue #8)."""
-
     validation_metrics: pd.DataFrame
     test_metrics: pd.DataFrame
     combined_comparison: pd.DataFrame
@@ -106,7 +102,7 @@ def _bootstrap_test_metric_std(
     rng = np.random.default_rng(random_state)
     pos_idx = np.flatnonzero(y_true == 1)
     neg_idx = np.flatnonzero(y_true == 0)
-    
+
     # Manejo de casos extremos: si falta una clase, no podemos calcular desviación real
     if len(pos_idx) == 0 or len(neg_idx) == 0 or n_bootstrap < 2:
         return {f"{metric}_test_std": 0.0 for metric in METRIC_NAMES}
@@ -181,6 +177,7 @@ def compute_cv_metrics_for_selected_models(
             "balanced": balanced,
             "balancing_strategy": str(summary_row["balancing_strategy"]),
             "best_hyperparameters": str(summary_row["best_hyperparameters"]),
+            "selected_features": str(summary_row.get("selected_features", "[]")),
         }
         for metric in METRIC_NAMES:
             record[f"{metric}_cv_mean"] = float(fold_df[metric].mean())

@@ -9,6 +9,18 @@ from src.models.decision_tree import create_decision_tree_pipeline
 
 
 class CustomRandomForest(BaseEstimator, ClassifierMixin):
+    """Random Forest implementado desde cero mediante bootstrap y votación mayoritaria.
+
+    1. Genera una muestra bootstrap con reemplazo del mismo tamaño que el conjunto
+       de entrenamiento disponible para cada árbol.
+    2. Entrena un ``DecisionTreeClassifier`` independiente sobre cada muestra.
+    3. Introduce aleatoriedad de características por división mediante ``max_features``.
+    4. Combina las predicciones por votación mayoritaria. En caso de configurarse
+       un número par de árboles y producirse un empate, desempata eligiendo de
+       forma determinista la clase con etiqueta numérica menor (``0``).
+    5. Deriva semillas estrictamente únicas por árbol a partir de ``random_state``.
+    """
+
     def __init__(
         self,
         n_estimators: int = 15,
@@ -91,6 +103,7 @@ class CustomRandomForest(BaseEstimator, ClassifierMixin):
         return self
 
     def predict(self, X: pd.DataFrame | np.ndarray) -> np.ndarray:
+        """Predice la clase mediante votación mayoritaria entre todos los árboles."""
         check_is_fitted(self, ["estimators_", "classes_"])
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
 

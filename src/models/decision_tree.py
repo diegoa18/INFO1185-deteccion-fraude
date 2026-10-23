@@ -1,3 +1,4 @@
+"""Pipeline configurable de Árbol de Decisión para detección de fraude."""
 from __future__ import annotations
 from typing import Any
 from sklearn.pipeline import Pipeline
@@ -14,6 +15,11 @@ def create_decision_tree_pipeline(
     random_state: int = RANDOM_STATE,
     **tree_kwargs: Any,
 ) -> Pipeline:
+    """Construye un pipeline de Árbol de Decisión con preprocesamiento sin fuga.
+    Por defecto utiliza ``scaler_kind="none"`` (passthrough) dado que las
+    particiones ortogonales de un árbol de decisión son invariantes a
+    transformaciones monótonas de escala.
+    """
     if "random_state" in tree_kwargs:
         tree_kwargs.pop("random_state")
 

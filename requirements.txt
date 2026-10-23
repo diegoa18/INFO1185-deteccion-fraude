@@ -4,4 +4,4 @@ scikit-learn>=1.5,<2
 matplotlib>=3.9,<4
 seaborn>=0.13,<1
 jupyter>=1.1,<2
-pytest>=8.0,<9
+pytest>=8.0,<10
