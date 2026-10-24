@@ -10,6 +10,17 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Archivos auxiliares de compilación LaTeX (el PDF final sí se versiona)
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+
 # Entornos de Jupyter
 .ipynb_checkpoints/
 
