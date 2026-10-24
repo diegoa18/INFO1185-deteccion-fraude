@@ -61,6 +61,13 @@ class CustomRandomForest(BaseEstimator, ClassifierMixin):
         return np.asarray(seeds, dtype=np.int64)
 
     def fit(self, X: pd.DataFrame | np.ndarray, y: pd.Series | np.ndarray) -> CustomRandomForest:
+        """Entrena árboles independientes sobre muestras bootstrap reproducibles.
+
+        Cada árbol recibe una muestra con reemplazo del mismo tamaño que ``X`` y
+        una semilla propia derivada de ``random_state``. La aleatoriedad de
+        atributos por división se delega al ``DecisionTreeClassifier`` mediante
+        ``max_features``.
+        """
         if not isinstance(self.n_estimators, int) or self.n_estimators < 1:
             raise ValueError("n_estimators debe ser un entero positivo.")
 

@@ -1,3 +1,11 @@
+"""Evaluación final de las configuraciones seleccionadas sin reutilizar test.
+
+La variabilidad de validación se calcula entre los cinco folds. En prueba se
+reporta una única evaluación y, por separado, la dispersión estimada mediante
+bootstrap estratificado de las predicciones fijas; esta última no representa
+nuevos entrenamientos ni se usa para seleccionar modelos.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -44,6 +52,8 @@ METRIC_NAMES = (
 
 @dataclass
 class Issue8EvaluationResults:
+    """Agrupa tablas y estimadores producidos por la evaluación final."""
+
     validation_metrics: pd.DataFrame
     test_metrics: pd.DataFrame
     combined_comparison: pd.DataFrame
@@ -98,7 +108,7 @@ def _bootstrap_test_metric_std(
     n_bootstrap: int = 200,
     random_state: int = RANDOM_STATE,
 ) -> dict[str, float]:
-    """Estima la desviación estándar en test mediante bootstrap estratificado."""
+    """Estima dispersión muestral en test sin reentrenar ni seleccionar modelos."""
     rng = np.random.default_rng(random_state)
     pos_idx = np.flatnonzero(y_true == 1)
     neg_idx = np.flatnonzero(y_true == 0)
