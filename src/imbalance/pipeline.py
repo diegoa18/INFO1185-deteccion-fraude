@@ -20,10 +20,10 @@ from sklearn.utils.validation import check_is_fitted
 class LeakageSafeResamplingPipeline(ClassifierMixin, BaseEstimator):
     """Combina preprocesador, sobremuestreador opcional y clasificador.
 
-    Parameters are regular nested scikit-learn parameters, so callers can set
-    ``classifier__C`` or ``preprocessor__select__k`` during a model search. The
-    sampler is cloned and fitted anew in every ``fit`` call, which prevents any
-    sample generated from a validation fold from reaching a training fold.
+    Los parámetros anidados siguen la API de scikit-learn, por ejemplo
+    ``classifier__C`` o ``preprocessor__select__k``. El sobremuestreador se clona
+    y ajusta en cada llamada a ``fit`` para impedir que observaciones generadas
+    desde validación o prueba entren al entrenamiento.
     """
 
     def __init__(
